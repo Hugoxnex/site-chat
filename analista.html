@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel do Analista</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Barra lateral -->
+        <div class="sidebar">
+            <div class="profile">
+                <img src="https://www.bracell.com/wp-content/uploads/2019/04/bracell_logo_FA.png" alt="Logo Empresa" style="width: 220px; height: auto;">
+
+                <h3 id="agent-name">Nome do Analista</h3>
+                <p class="status available" id="status-indicator">Disponível</p>
+            </div>
+            
+            <div class="queue-info">
+                <h4><i class="fas fa-users"></i> Fila de Espera</h4>
+                <div id="queue-count">0</div>
+            </div>
+            
+            <button id="toggle-status" class="btn-status available">
+                <i class="fas fa-user-clock"></i> Alterar Status
+            </button>
+            
+            <button id="logout-btn" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Sair
+            </button>
+        </div>
+        
+        <!-- Área principal -->
+        <div class="main-content">
+            <div class="active-chats" id="active-chats">
+                <div class="no-chats">
+                    <i class="fas fa-comments"></i>
+                    <p>Nenhum chat ativo no momento</p>
+                </div>
+            </div>
+            
+            <div class="chat-window hidden" id="chat-window">
+                <div class="chat-header">
+                    <span id="chat-with">Chat com Usuário</span>
+                </div>
+                
+                <div class="chat-messages" id="agent-chat-messages"></div>
+                
+                <div class="chat-input-area">
+                    <input type="text" id="agent-message-input" placeholder="Digite sua resposta...">
+                    <button id="agent-send-button">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="agent.js"></script>
+</body>
+</html>

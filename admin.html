@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Administrativo</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="admin-container">
+        <h1><i class="fas fa-user-cog"></i> Painel Administrativo</h1>
+        
+        <div class="admin-actions">
+            <div class="register-form">
+                <h2><i class="fas fa-user-plus"></i> Cadastrar Novo Analista</h2>
+                <form id="registerForm">
+                    <div class="input-group">
+                        <label for="name">Nome Completo</label>
+                        <input type="text" id="name" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="username">Nome de Usuário</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="password">Senha</label>
+                        <input type="password" id="password" required minlength="6">
+                    </div>
+                    <button type="submit">
+                        <i class="fas fa-save"></i> Cadastrar
+                    </button>
+                    <div id="registerError" class="error-message hidden"></div>
+                </form>
+            </div>
+            
+            <div class="agents-list">
+                <h2><i class="fas fa-users"></i> Analistas Cadastrados</h2>
+                <div class="table-container">
+                    <table id="agentsTable">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Usuário</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Lista será preenchida via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Função para carregar analistas
+        async function loadAgents() {
+            try {
+                const response = await fetch('/api/agents', {
+                    headers: {
+                        'Authorization': `Bearer ${getCookie('token')}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error || 'Erro ao carregar analistas');
+                }
+
+                const agents = await response.json();
+                renderAgentsTable(agents);
+            } catch (error) {
+                console.error('Erro ao carregar analistas:', error);
+                showNotification(error.message, 'error');
+            }
+        }
+
+        // Função para renderizar a tabela
+        function renderAgentsTable(agents) {
+            const tableBody = document.querySelector('#agentsTable tbody');
+            tableBody.innerHTML = agents.map(agent => `
+                <tr>
+                    <td>${agent.name}</td>
+                    <td>${agent.username}</td>
+                    <td><span class="status ${agent.status}">${agent.status}</span></td>
+                    <td>
+                        <button class="btn-action" onclick="resetPasswordPrompt(${agent.id})">
+                            <i class="fas fa-key"></i> Redefinir Senha
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Função para cadastrar novo analista (ATUALIZADA)
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const form = e.target;
+            const btn = form.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            
+            // Mostra loading no botão
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cadastrando...';
+
+            // Limpa mensagens anteriores
+            const errorElement = document.getElementById('registerError');
+            errorElement.textContent = '';
+            errorElement.className = 'error-message hidden';
+
+            try {
+                // Prepara os dados
+                const formData = {
+                    name: form.name.value.trim(),
+                    username: form.username.value.trim(),
+                    password: form.password.value.trim()
+                };
+
+                // Validação básica no frontend
+                if (!formData.name || !formData.username || !formData.password) {
+                    throw new Error('Todos os campos são obrigatórios');
+                }
+
+                if (formData.password.length < 6) {
+                    throw new Error('A senha deve ter no mínimo 6 caracteres');
+                }
+
+                // Faz a requisição
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getCookie('token')}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                // Verifica se a resposta é JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Resposta não-JSON do servidor:', text);
+                    throw new Error(`Erro no servidor: ${text.slice(0, 100)}...`);
+                }
+
+                const data = await response.json();
+                
+                // Trata erros da API
+                if (!response.ok) {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    } else if (data.missing) {
+                        const missingFields = Object.entries(data.missing)
+                            .filter(([_, isMissing]) => isMissing)
+                            .map(([field]) => field)
+                            .join(', ');
+                        throw new Error(`Preencha os campos obrigatórios: ${missingFields}`);
+                    } else {
+                        throw new Error('Erro desconhecido ao cadastrar');
+                    }
+                }
+
+                // Sucesso
+                showNotification('Analista cadastrado com sucesso!', 'success');
+                form.reset();
+                loadAgents();
+
+            } catch (error) {
+                console.error('Erro no cadastro:', error);
+                
+                // Mostra o erro na interface
+                errorElement.textContent = error.message;
+                errorElement.className = 'error-message';
+                
+                // Rolagem automática para o erro
+                errorElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+                
+            } finally {
+                // Restaura o botão
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+
+        // Função para mostrar notificações
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'check-circle'}"></i>
+                ${message}
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                setTimeout(() => notification.remove(), 500);
+            }, 3000);
+        }
+
+        // Função auxiliar para pegar cookies
+        function getCookie(name) {
+            const cookies = document.cookie.split(';');
+            for (const cookie of cookies) {
+                const [key, value] = cookie.trim().split('=');
+                if (key === name) return decodeURIComponent(value);
+            }
+            return null;
+        }
+
+        // Função para redefinir senha (exemplo)
+        function resetPasswordPrompt(agentId) {
+            alert(`Função de redefinição para o analista ID: ${agentId}`);
+            // Implementar lógica de redefinição aqui
+        }
+
+        // Carrega os analistas quando a página abre
+        document.addEventListener('DOMContentLoaded', loadAgents);
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const form = e.target;
+  const btn = form.querySelector('button[type="submit"]');
+  const originalText = btn.innerHTML;
+  
+  // Mostra loading no botão
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cadastrando...';
+
+  // Limpa mensagens anteriores
+  const errorElement = document.getElementById('registerError');
+  errorElement.textContent = '';
+  errorElement.className = 'error-message hidden';
+
+  try {
+    // Prepara os dados
+    const formData = {
+      name: form.name.value.trim(),
+      username: form.username.value.trim(),
+      password: form.password.value.trim()
+    };
+
+    console.log('Enviando dados para cadastro:', formData);
+
+    // Validação básica no frontend
+    if (!formData.name || !formData.username || !formData.password) {
+      throw new Error('Todos os campos são obrigatórios');
+    }
+
+    if (formData.password.length < 6) {
+      throw new Error('A senha deve ter no mínimo 6 caracteres');
+    }
+
+    // Faz a requisição
+    const response = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getCookie('token')}`
+      },
+      body: JSON.stringify(formData)
+    });
+
+    console.log('Resposta recebida - Status:', response.status);
+
+    // Verifica se a resposta é JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Resposta não-JSON do servidor:', text);
+      throw new Error(`Erro no servidor: ${text.slice(0, 100)}...`);
+    }
+
+    const data = await response.json();
+    console.log('Dados da resposta:', data);
+    
+    // Trata erros da API
+    if (!response.ok) {
+      if (data.error) {
+        throw new Error(data.error);
+      } else if (data.missing) {
+        const missingFields = Object.entries(data.missing)
+          .filter(([_, isMissing]) => isMissing)
+          .map(([field]) => field)
+          .join(', ');
+        throw new Error(`Preencha os campos obrigatórios: ${missingFields}`);
+      } else {
+        throw new Error('Erro desconhecido ao cadastrar');
+      }
+    }
+
+    // Sucesso
+    showNotification('Analista cadastrado com sucesso!', 'success');
+    form.reset();
+    loadAgents();
+
+  } catch (error) {
+    console.error('Erro no cadastro:', error);
+    
+    // Mostra o erro na interface
+    errorElement.textContent = error.message;
+    errorElement.className = 'error-message';
+    
+    // Rolagem automática para o erro
+    errorElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+    
+  } finally {
+    // Restaura o botão
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+});
+    </script>
+</body>
+</html>
